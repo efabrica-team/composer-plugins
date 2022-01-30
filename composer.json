@@ -1,0 +1,19 @@
+{
+    "name": "efabrica/composer-plugin",
+    "type": "composer-plugin",
+    "require": {
+        "php": ">=7.4 <8.2",
+        "composer-plugin-api": "^2.0"
+    },
+    "require-dev": {
+        "composer/composer": "^2.0"
+    },
+    "extra": {
+        "class": "Efabrica\\ComposerPlugin\\Plugin"
+    },
+    "autoload": {
+        "psr-4": {
+            "Efabrica\\ComposerPlugin\\": "src"
+        }
+    }
+}
