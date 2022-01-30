@@ -1,6 +1,7 @@
 {
     "name": "efabrica/composer-plugin",
     "type": "composer-plugin",
+    "license": "MIT",
     "require": {
         "php": ">=7.4 <8.2",
         "composer-plugin-api": "^2.0"

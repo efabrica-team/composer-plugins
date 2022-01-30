@@ -2,8 +2,11 @@
 
 ## Installation
 ```shell
-composer global require efabrica/composer-plugin
+composer global require efabrica/composer-plugin:dev-main
 ```
+
+Answer `y` to question:
+"Do you trust "efabrica/composer-plugin" to execute code and wish to enable it now? (writes "allow-plugins" to composer.json)"
 
 ## Command
 This plugin allows you to use additional command:
