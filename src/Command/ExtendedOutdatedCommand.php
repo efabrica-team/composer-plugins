@@ -60,6 +60,7 @@ class ExtendedOutdatedCommand extends BaseCommand
         ],
     ];
 
+    /** @var array<string, string> */
     private array $hostToTypeMap = [
         'github.com' => self::TYPE_GITHUB,
         'gitlab.com' => self::TYPE_GITLAB,
@@ -88,34 +89,41 @@ class ExtendedOutdatedCommand extends BaseCommand
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        /** @var Composer $composer */
         $composer = $this->getComposer();
+        /** @var string $vendorDir */
         $vendorDir = $composer->getConfig()->get('vendor-dir');
 
-        foreach ($input->getOption('host-to-type') as $hostToType) {
+        /** @var string[] $hostsToTypes */
+        $hostsToTypes = $input->getOption('host-to-type');
+        foreach ($hostsToTypes as $hostToType) {
             [$host, $type] = explode('|', $hostToType, 2);
             $this->hostToTypeMap[$host] = $type;
         }
 
         $io = $this->getIO();
 
+        /** @var string $format */
         $format = $input->getOption('format');
         if (!in_array($format, ['text', 'json'])) {
             $io->writeError(sprintf('Unsupported format "%s". See help for supported formats.', $format));
             return 1;
         }
 
+        /** @var bool|string $ignorePlatformReqs */
         $ignorePlatformReqs = $input->getOption('ignore-platform-reqs') ?: ($input->getOption('ignore-platform-req') ?: false);
 
         // init repos
+        /** @var array<string, string|false> $platformOverrides */
         $platformOverrides = $composer->getConfig()->get('platform') ?: [];
         $platformRepo = new PlatformRepository([], $platformOverrides);
         $lockedRepo = null;
 
         if ($input->getOption('locked')) {
-            if (!$composer->getLocker()->isLocked()) {
+            $locker = $composer->getLocker();
+            if (!$locker || !$locker->isLocked()) {
                 throw new UnexpectedValueException('A valid composer.json and composer.lock files is required to run this command with --locked');
             }
-            $locker = $composer->getLocker();
             $lockedRepo = $locker->getLockedRepository(!$input->getOption('no-dev'));
             $repos = $installedRepo = new InstalledRepository(array($lockedRepo));
         } else {
@@ -134,6 +142,7 @@ class ExtendedOutdatedCommand extends BaseCommand
             }
         }
 
+        /** @var string|null $packageFilter */
         $packageFilter = $input->getOption('filter');
 
         // list packages
@@ -145,7 +154,7 @@ class ExtendedOutdatedCommand extends BaseCommand
 
         $packageListFilter = [];
         if ($input->getOption('direct')) {
-            $packageListFilter = $this->getRootRequires();
+            $packageListFilter = $this->getRootRequires($composer);
         }
 
         foreach ($repos->getRepositories() as $repo) {
@@ -186,8 +195,12 @@ class ExtendedOutdatedCommand extends BaseCommand
             }
         }
 
+        /** @var bool $showMinorOnly */
         $showMinorOnly = $input->getOption('minor-only');
-        $ignoredPackages = array_map('strtolower', $input->getOption('ignore'));
+
+        /** @var string[] $ignore */
+        $ignore = $input->getOption('ignore');
+        $ignoredPackages = array_map('strtolower', $ignore);
         /** @var PackageInterface[] $latestPackages */
         $latestPackages = [];
         $exitCode = 0;
@@ -200,7 +213,7 @@ class ExtendedOutdatedCommand extends BaseCommand
                     foreach ($packages[$type] as $package) {
                         if (is_object($package)) {
                             $latestPackage = $this->findLatestPackage($package, $composer, $platformRepo, $showMinorOnly, $ignorePlatformReqs);
-                            if ($latestPackage === false) {
+                            if ($latestPackage === null) {
                                 continue;
                             }
 
@@ -223,7 +236,7 @@ class ExtendedOutdatedCommand extends BaseCommand
                         // Determine if Composer is checking outdated dependencies and if current package should trigger non-default exit code
                         $packageIsUpToDate = $latestPackage && $latestPackage->getFullPrettyVersion() === $package->getFullPrettyVersion() && (!$latestPackage instanceof CompletePackageInterface || !$latestPackage->isAbandoned());
                         $packageIsIgnored = \in_array($package->getPrettyName(), $ignoredPackages, true);
-                        if ($packageIsUpToDate || $packageIsIgnored) {
+                        if (!$latestPackage || $packageIsUpToDate || $packageIsIgnored) {
                             continue;
                         }
 
@@ -233,8 +246,8 @@ class ExtendedOutdatedCommand extends BaseCommand
 
                         $packageViewData['name'] = $package->getPrettyName();
                         $packageViewData['version'] = $package->getFullPrettyVersion();
-                        $packageViewData['latest'] = $latestPackage ? $latestPackage->getFullPrettyVersion() : '';
-                        $packageViewData['latest-status'] = $latestPackage ? $this->getUpdateStatus($latestPackage, $package) : '';
+                        $packageViewData['latest'] = $latestPackage->getFullPrettyVersion();
+                        $packageViewData['latest-status'] = $this->getUpdateStatus($latestPackage, $package);
 
                         $urls = [
                             self::URL_DIFF => $this->createDiffUrl($package, $latestPackage),
@@ -325,9 +338,9 @@ class ExtendedOutdatedCommand extends BaseCommand
     /**
      * @return string[]
      */
-    private function getRootRequires(): array
+    private function getRootRequires(Composer $composer): array
     {
-        $rootPackage = $this->getComposer()->getPackage();
+        $rootPackage = $composer->getPackage();
 
         return array_map(
             'strtolower',
@@ -366,20 +379,20 @@ class ExtendedOutdatedCommand extends BaseCommand
      * Given a package, this finds the latest package matching it
      *
      * @param bool|string $ignorePlatformReqs
-     *
-     * @return PackageInterface|false
      */
-    private function findLatestPackage(PackageInterface $package, Composer $composer, PlatformRepository $platformRepo, bool $minorOnly = false, $ignorePlatformReqs = false)
+    private function findLatestPackage(PackageInterface $package, Composer $composer, PlatformRepository $platformRepo, bool $minorOnly = false, $ignorePlatformReqs = false): ?PackageInterface
     {
         // find the latest version allowed in this repo set
         $name = $package->getName();
         $versionSelector = new VersionSelector($this->getRepositorySet($composer), $platformRepo);
+        /** @var string $stability */
         $stability = $composer->getPackage()->getMinimumStability();
         $flags = $composer->getPackage()->getStabilityFlags();
         if (isset($flags[$name])) {
             $stability = array_search($flags[$name], BasePackage::$stabilities, true);
         }
 
+        /** @var string $bestStability */
         $bestStability = $stability;
         if ($composer->getPackage()->getPreferStable()) {
             $bestStability = $package->getStability();
@@ -399,7 +412,7 @@ class ExtendedOutdatedCommand extends BaseCommand
             $candidate = $candidate->getAliasOf();
         }
 
-        return $candidate;
+        return $candidate ?: null;
     }
 
     private function getRepositorySet(Composer $composer): RepositorySet
@@ -442,6 +455,10 @@ class ExtendedOutdatedCommand extends BaseCommand
         $sourceUrl = $package->getSourceUrl();
         $baseUrl = $this->getBaseUrl($sourceUrl);
 
+        if ($baseUrl === null) {
+            return null;
+        }
+
         $type = $this->getType($baseUrl);
         $diffPattern = self::URL_MAP[$type][self::URL_DIFF] ?? '';
 
@@ -476,6 +493,10 @@ class ExtendedOutdatedCommand extends BaseCommand
         $sourceUrl = $package->getSourceUrl();
         $baseUrl = $this->getBaseUrl($sourceUrl);
 
+        if ($baseUrl === null) {
+            return null;
+        }
+
         $type = $this->getType($baseUrl);
         $changelogPattern = self::URL_MAP[$type][self::URL_CHANGELOG] ?? '';
 
@@ -502,8 +523,11 @@ class ExtendedOutdatedCommand extends BaseCommand
         return null;
     }
 
-    private function getBaseUrl(string $sourceUrl): string
+    private function getBaseUrl(?string $sourceUrl): ?string
     {
+        if (!$sourceUrl) {
+            return null;
+        }
         return str_replace([':', 'git@', '.git', '///'], ['/', 'https://', '', '://'], $sourceUrl);
     }
 
