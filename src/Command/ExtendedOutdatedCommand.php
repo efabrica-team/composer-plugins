@@ -236,7 +236,7 @@ class ExtendedOutdatedCommand extends BaseCommand
                         // Determine if Composer is checking outdated dependencies and if current package should trigger non-default exit code
                         $packageIsUpToDate = $latestPackage && $latestPackage->getFullPrettyVersion() === $package->getFullPrettyVersion() && (!$latestPackage instanceof CompletePackageInterface || !$latestPackage->isAbandoned());
                         $packageIsIgnored = \in_array($package->getPrettyName(), $ignoredPackages, true);
-                        if (!$latestPackage || $packageIsUpToDate || $packageIsIgnored) {
+                        if ($packageIsUpToDate || $packageIsIgnored) {
                             continue;
                         }
 
@@ -246,12 +246,12 @@ class ExtendedOutdatedCommand extends BaseCommand
 
                         $packageViewData['name'] = $package->getPrettyName();
                         $packageViewData['version'] = $package->getFullPrettyVersion();
-                        $packageViewData['latest'] = $latestPackage->getFullPrettyVersion();
-                        $packageViewData['latest-status'] = $this->getUpdateStatus($latestPackage, $package);
+                        $packageViewData['latest'] = $latestPackage ? $latestPackage->getFullPrettyVersion() : '';
+                        $packageViewData['latest-status'] = $latestPackage ? $this->getUpdateStatus($latestPackage, $package) : '';
 
                         $urls = [
-                            self::URL_DIFF => $this->createDiffUrl($package, $latestPackage),
-                            self::URL_CHANGELOG => $this->createChangelogUrl($package, $latestPackage, $vendorDir),
+                            self::URL_DIFF => $latestPackage ? $this->createDiffUrl($package, $latestPackage) : null,
+                            self::URL_CHANGELOG => $latestPackage ? $this->createChangelogUrl($package, $latestPackage, $vendorDir) : null,
                         ];
 
                         $packageViewData['urls'] = array_filter($urls);
@@ -316,7 +316,7 @@ class ExtendedOutdatedCommand extends BaseCommand
                 if (!$io->isDecorated()) {
                     $latestVersion = str_replace(['up-to-date', 'semver-safe-update', 'update-possible'], ['=', '!', '~'], $package['latest-status']) . ' ' . $latestVersion;
                 }
-                $package['latest'] = '<' . $style . '>' . $latestVersion . '</' . $style . '>';
+                $package['latest'] = ($style ? '<' . $style . '>' : '') . $latestVersion . ($style ? '</' . $style . '>' : '');
 
                 unset($package['latest-status']);
                 unset($package['urls']);
@@ -502,7 +502,7 @@ class ExtendedOutdatedCommand extends BaseCommand
 
         return str_replace(
             ['%baseUrl%', '%latestVersion%', '%changelogFile%'],
-            [$baseUrl, $latestPackage->getPrettyVersion(), $changelog],
+            [$baseUrl, preg_replace('/^dev-/', '', $latestPackage->getPrettyVersion()), $changelog],
             $changelogPattern
         );
     }
