@@ -2,6 +2,9 @@
 
 ## [Unreleased][unreleased]
 
+### Fixed
+- Changelog parse is skipped for metapackage type
+
 ## [1.0.1]
 ### Fixed
 - PHP version in composer

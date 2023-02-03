@@ -483,6 +483,10 @@ class ExtendedOutdatedCommand extends BaseCommand
 
     private function createChangelogUrl(PackageInterface $package, PackageInterface $latestPackage, string $vendorDir): ?string
     {
+        if ($package->getType() === 'metapackage') {
+            return null;
+        }
+
         $packagePath = $vendorDir . '/' . $package->getName();
 
         $changelog = $this->findChangelogFile($packagePath);
