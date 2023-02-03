@@ -2,6 +2,7 @@
 
 ## [Unreleased][unreleased]
 
+## [1.0.2]
 ### Fixed
 - Changelog parse is skipped for metapackage type
 
@@ -14,6 +15,7 @@
 ### Added
 - Command extended-outdated
 
-[unreleased]: https://github.com/efabrica-team/composer-plugin/compare/1.0.1...HEAD
+[unreleased]: https://github.com/efabrica-team/composer-plugin/compare/1.0.2...HEAD
+[1.0.2]: https://github.com/efabrica-team/composer-plugin/compare/1.0.1...1.0.2
 [1.0.1]: https://github.com/efabrica-team/composer-plugin/compare/1.0.0...1.0.1
 [1.0.0]: https://github.com/efabrica-team/composer-plugin/compare/94483a2b4959360b4963e41b947b835d7980b0a3...1.0.0
